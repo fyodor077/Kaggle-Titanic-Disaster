@@ -45,7 +45,7 @@ CONFIG = {
         'use_label_encoder': False,
         'eval_metric': 'logloss',
         'random_state': 1337,
-        'vebosity': 0,
+        'verbosity': 0,
     },
     'lgb_params': {
         'n_estimators': 500,
@@ -88,7 +88,7 @@ def engineer_features(df, is_train=True, title_age_median=None, fare_bin_edges=N
     'Jonkheer': 'Mr'
     }
     df['Initials'] = df['Name'].str.extract(r' ([A-Za-z]+)\.', expand=False)
-    df['Initials'] = df['Name'].replace(title_mapping)
+    df['Initials'] = df['Initials'].replace(title_mapping)
 
     # -- Age imputation --
     if is_train:
@@ -200,8 +200,8 @@ def train_model(model, X_train, y_train, X_test, preprocessor, config):
         # fit только на трейн фолде
         fold_preprocessor = clone(preprocessor)
         X_fold_train = fold_preprocessor.fit_transform(X_fold_train)
-        X_fold_val = fold_preprocessor.fit_transform(X_fold_val)
-        X_fold_test = fold_preprocessor.fit_transform(X_test)
+        X_fold_val = fold_preprocessor.transform(X_fold_val)
+        X_fold_test = fold_preprocessor.transform(X_test)
 
         # -- Training --
         fold_model = clone(model)
@@ -274,7 +274,7 @@ def make_submission(results, test_ids, config):
     Выбираем лучшую модель по 'mean CV score',
     округляем предсказания и сохраняем их в submission.csv.
     """
-    best_model_name = max(results, key=lambda x: results[x]['mean score'])
+    best_model_name = max(results, key=lambda x: results[x]['mean_score'])
     best_test_preds = results[best_model_name]['test_preds']
 
     print(f'\nBest model: {best_model_name}')
