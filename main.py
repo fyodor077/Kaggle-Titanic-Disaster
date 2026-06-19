@@ -92,7 +92,7 @@ def engineer_features(df, is_train=True, title_age_median=None, fare_bin_edges=N
 
     # -- Age imputation --
     if is_train:
-        title_age_median = df.groupdby('Initials')['Age]'].median()
+        title_age_median = df.groupby('Initials')['Age'].median()
     
     overall_median = df['Age'].median()
     df['Age'] = df['Age'].fillna(df['Initials'].map(title_age_median))
@@ -141,8 +141,7 @@ def engineer_features(df, is_train=True, title_age_median=None, fare_bin_edges=N
 
 # == Apllying ==
 train, title_age_median, fare_bin_edges, fare_median_by_class = engineer_features(
-    train, is_train=True
-)
+    train, is_train=True)
 test, _, _, _ = engineer_features(
     test,
     is_train=False,
@@ -195,7 +194,7 @@ def train_model(model, X_train, y_train, X_test, preprocessor, config):
         X_fold_train = X_train.iloc[train_idx]
         y_fold_train = y_train.iloc[train_idx]
         X_fold_val = X_train.iloc[val_idx]
-        y_fold_train = y_train.iloc[val_idx]
+        y_fold_val = y_train.iloc[val_idx]
 
         # -- Preprocessing --
         # fit только на трейн фолде
@@ -220,7 +219,7 @@ def train_model(model, X_train, y_train, X_test, preprocessor, config):
     
     # -- Cross-Validation Summary --
     print(f'\nMean Accuracy: {np.mean(scores):.4f} ± {np.std(scores):.4f}')
-    print(f'\Out-Of-Fold Accuracy: {accuracy_score(y_train, oof_preds):.4f}')
+    print(f'Out-Of-Fold Accuracy: {accuracy_score(y_train, oof_preds):.4f}')
 
     return oof_preds, test_preds, scores
 
@@ -238,5 +237,57 @@ models = {
     'LightGBM': lgb_model,
 }
 
+# == Run CV & Training ==
+results = {}
 
+for name, model in models.items():
+    print(f'\n{"="*40}')
+    print(f'Model: {name}')
+    print(f'{"="*40}')
 
+    oof_preds, test_preds, scores = train_model(
+        model=model,
+        X_train=X_train,
+        y_train=y_train,
+        X_test=X_test,
+        preprocessor=preprocessor,
+        config=CONFIG
+    )
+    results[name] = {
+        'oof_preds': oof_preds,
+        'test_preds': test_preds,
+        'scores': scores,
+        'mean_score': np.mean(scores),
+        'std_score': np.std(scores),
+    }
+
+# == Restults Summary ==
+print(f'\n{"="*40}')
+print('Results Summary')
+print(f'{"="*40}')
+for name, result in results.items():
+    print(f'{name:25s} | Accuracy: {result["mean_score"]:.4f} ± {result["std_score"]:.4f}')
+
+# == Submission ==
+def make_submission(results, test_ids, config):
+    """
+    Выбираем лучшую модель по 'mean CV score',
+    округляем предсказания и сохраняем их в submission.csv.
+    """
+    best_model_name = max(results, key=lambda x: results[x]['mean score'])
+    best_test_preds = results[best_model_name]['test_preds']
+
+    print(f'\nBest model: {best_model_name}')
+    print(f'Best CV Accuracy: {results[best_model_name]["mean_score"]:.4f}')
+
+    submission = pd.DataFrame({
+        'PassengerId': test_ids,
+        'Survived': np.round(best_test_preds).astype(int)
+    })
+
+    submission.to_csv('submission.csv', index=False)
+    print(f'\nSubmission saved: submission.csv')
+    print(submission['Survived'].value_counts())
+
+make_submission(results, test_ids, CONFIG)
+    
