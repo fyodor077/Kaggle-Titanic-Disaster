@@ -288,13 +288,13 @@ def lgb_objective(trial):
 N_TRIALS = 50
 
 print('Tuning XGBoost...')
-xgb_study = optuna.create_study(direction='maximize', seed=CONFIG['seed'])
+xgb_study = optuna.create_study(direction='maximize', sampler=optuna.samplers.TPESampler(seed=CONFIG['seed']))
 xgb_study.optimize(xgb_objective, n_trials=N_TRIALS, show_progress_bar=True)
 print(f'XGBoost best CV: {xgb_study.best_value:.4f}')
 print(f'XGBoost best params: {xgb_study.best_params}')
 
 print('\nTuning LightGBM...')
-lgb_study = optuna.create_study(direction='maximize', seed=CONFIG['seed'])
+lgb_study = optuna.create_study(direction='maximize', sampler=optuna.samplers.TPESampler(seed=CONFIG['seed']))
 lgb_study.optimize(lgb_objective, n_trials=N_TRIALS, show_progress_bar=True)
 print(f'LightGBM best CV: {lgb_study.best_value:.4f}')
 print(f'LightGBM best params: {lgb_study.best_params}')
