@@ -244,6 +244,65 @@ models = {
     'LightGBM': lgb_model,
 }
 
+# == Hyperparameter Tuning ==
+def xgb_objective(trial):
+    params = {
+        'max_depth': trial.suggest_int('max_depth', 2, 6),
+        'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.2, log=True),
+        'n_estimators': trial.suggest_int('n_estimators', 100, 600),
+        'subsample': trial.suggest_float('subsample', 0.6, 1.0),
+        'colsample_bytree': trial.suggest_float('colsample_bytree', 0.6, 1.0),
+        'min_child_weight': trial.suggest_int('min_child_weight', 1, 10),
+        'reg_alpha': trial.suggest_float('reg_alpha', 1e-3, 10.0, log=True),
+        'reg_lambda': trial.suggest_float('reg_lambda', 1e-3, 10.0, log=True),
+        'eval_metric': 'logloss',
+        'random_state': CONFIG['seed'],
+        'verbosity': 0,
+    }
+    model = xgb.XGBClassifier(**params)
+    _, _, scores = train_model(
+        model, X_train, y_train, X_test, preprocessor, CONFIG, verbose=False
+    )
+    return np.mean(scores)
+
+def lgb_objective(trial):
+    params = {
+        'max_depth': trial.suggest_int('max_depth', 2, 6),
+        'learning_rate': trial.suggest_float('learning_rate', 0.01, 0.2, log=True),
+        'n_estimators': trial.suggest_int('n_estimators', 100, 600),
+        'subsample': trial.suggest_float('subsample', 0.6, 1.0),
+        'colsample_bytree': trial.suggest_float('colsample_bytree', 0.6, 1.0),
+        'min_child_samples': trial.suggest_int('min_child_samples', 5, 30),
+        'reg_alpha': trial.suggest_float('reg_alpha', 1e-3, 10.0, log=True),
+        'reg_lambda': trial.suggest_float('reg_lambda', 1e-3, 10.0, log=True),
+        'random_state': CONFIG['seed'],
+        'verbosity': -1,
+    }
+    model = lgb.LGBMClassifier(**params)
+    _, _, scores = train_model(
+        model, X_train, y_train, X_test, preprocessor, CONFIG, verbose=False
+    )
+    return np.mean(scores)
+
+# -- Run Tuning --
+N_TRIALS = 50
+
+print('Tuning XGBoost...')
+xgb_study = optuna.create_study(direction='maximize', seed=CONFIG['seed'])
+xgb_study.optimize(xgb_objective, n_trials=N_TRIALS, show_progress_bar=True)
+print(f'XGBoost best CV: {xgb_study.best_value:.4f}')
+print(f'XGBoost best params: {xgb_study.best_params}')
+
+print('\nTuning LightGBM...')
+lgb_study = optuna.create_study(direction='maximize', seed=CONFIG['seed'])
+lgb_study.optimize(lgb_objective, n_trials=N_TRIALS, show_progress_bar=True)
+print(f'LightGBM best CV: {lgb_study.best_value:.4f}')
+print(f'LightGBM best params: {lgb_study.best_params}')
+
+# -- Update CONFIG with best params --
+CONFIG['xgb_params'].update(xgb_study.best_params)
+CONFIG['lgb_params'].update(lgb_study.best_params)
+
 # == Run CV & Training ==
 results = {}
 
