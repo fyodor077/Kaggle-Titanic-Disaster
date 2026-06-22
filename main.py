@@ -10,6 +10,9 @@ import math
 import warnings
 warnings.filterwarnings('ignore')
 
+import optuna
+optuna.logging.set_verbosity(optuna.logging.WARNING)
+
 from sklearn.base import clone
 from sklearn.metrics import accuracy_score, roc_auc_score
 from sklearn.linear_model import LogisticRegression
@@ -171,7 +174,7 @@ X_test = test.copy()
 preprocessor = build_preprocessor(CONFIG['cat_features'])
 
 # == Cross-Validation & Training ==
-def train_model(model, X_train, y_train, X_test, preprocessor, config):
+def train_model(model, X_train, y_train, X_test, preprocessor, config, verbose=True):
     """
     Обучаем модель StratifiedKFold Cross-Validation.
     Возвращаем out-of-fold preds, test preds, scores.
@@ -211,15 +214,19 @@ def train_model(model, X_train, y_train, X_test, preprocessor, config):
         val_preds = fold_model.predict(X_fold_val)
         fold_score = accuracy_score(y_fold_val, val_preds)
         scores.append(fold_score)
-        print(f'Accuracy: {fold_score:.4f}')
+        # Временно отключаем: print(f'Accuracy: {fold_score:.4f}')
+
+        if verbose:
+            print(f'Accuracy: {fold_score:.4f}')
 
         # -- Out-of-Fold & Test predictions --
         oof_preds[val_idx] = val_preds
         test_preds += fold_model.predict(X_fold_test) / config['n_folds']
     
     # -- Cross-Validation Summary --
-    print(f'\nMean Accuracy: {np.mean(scores):.4f} ± {np.std(scores):.4f}')
-    print(f'Out-Of-Fold Accuracy: {accuracy_score(y_train, oof_preds):.4f}')
+    if verbose:
+        print(f'\nMean Accuracy: {np.mean(scores):.4f} ± {np.std(scores):.4f}')
+        print(f'Out-Of-Fold Accuracy: {accuracy_score(y_train, oof_preds):.4f}')
 
     return oof_preds, test_preds, scores
 
