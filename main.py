@@ -230,20 +230,6 @@ def train_model(model, X_train, y_train, X_test, preprocessor, config, verbose=T
 
     return oof_preds, test_preds, scores
 
-# == Models ==
-baseline = LogisticRegression(
-    max_iter=1000,
-    random_state=CONFIG['seed']
-)
-xgb_model = xgb.XGBClassifier(**CONFIG['xgb_params'])
-lgb_model = lgb.LGBMClassifier(**CONFIG['lgb_params'])
-
-models = {
-    'Baseline (LogReg)': baseline,
-    'XGBoost': xgb_model,
-    'LightGBM': lgb_model,
-}
-
 # == Hyperparameter Tuning ==
 def xgb_objective(trial):
     params = {
@@ -302,6 +288,20 @@ print(f'LightGBM best params: {lgb_study.best_params}')
 # -- Update CONFIG with best params --
 CONFIG['xgb_params'].update(xgb_study.best_params)
 CONFIG['lgb_params'].update(lgb_study.best_params)
+
+# == Models ==
+baseline = LogisticRegression(
+    max_iter=1000,
+    random_state=CONFIG['seed']
+)
+xgb_model = xgb.XGBClassifier(**CONFIG['xgb_params'])
+lgb_model = lgb.LGBMClassifier(**CONFIG['lgb_params'])
+
+models = {
+    'Baseline (LogReg)': baseline,
+    'XGBoost': xgb_model,
+    'LightGBM': lgb_model,
+}
 
 # == Run CV & Training ==
 results = {}
