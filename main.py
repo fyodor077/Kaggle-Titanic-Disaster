@@ -5,6 +5,10 @@ import pandas as pd
 import xgboost as xgb
 import lightgbm as lgb
 
+import torch
+import torch.nn as nn
+from torch.utils.data import DataLoader, TensorDataset
+
 import math
 
 import warnings
@@ -18,6 +22,7 @@ from sklearn.metrics import accuracy_score, roc_auc_score
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold
 from sklearn.compose import ColumnTransformer
+from sklearn.preprocessing import StandardScaler
 from sklearn.preprocessing import OneHotEncoder, LabelEncoder
 from sklearn.pipeline import Pipeline
 
@@ -333,6 +338,83 @@ print('Results Summary')
 print(f'{"="*40}')
 for name, result in results.items():
     print(f'{name:25s} | Accuracy: {result["mean_score"]:.4f} ± {result["std_score"]:.4f}')
+
+# == MLP Model ==
+# -- Network architecture --
+class TitanicMLP(nn.Module):
+    def __init__(self, input_dim):
+        super().__init__
+        self.network = nn.Sequential(
+            nn.Linear(input_dim, 64),
+            nn.BatchNorm1d(64),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+
+            nn.Linear(64, 32),
+            nn.BatchNorm1d(32),
+            nn.ReLU(),
+            nn.Dropout(0.3),
+
+            nn.Linear(32, 1),
+            nn.Sigmoid()
+        )
+    def forward(self, x):
+        return self.network(x)
+    
+# -- MLP Training w CV
+def train_mlp(X_train, y_train, X_test, preprocessor, config):
+    device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+
+    skf = StratifiedKFold(
+        n_splits=config['n_folds'],
+        shuffle=True,
+        random_state=config['seed']
+    )
+
+    oof_preds = np.zeros(len(X_train))
+    test_preds = np.zeros(len(X_test))
+    scores = []
+
+    for fold, (train_idx, val_idx) in enumerate(skf.split(X_train, y_train)):
+        print(f'Fold {fold + 1}/{config["n_folds"]}', end=' | ')
+# -- Split --
+        X_fold_train = X_train.iloc[train_idx]
+        y_fold_train = y_train.iloc[train_idx].values
+        X_fold_val = X_train.iloc[val_idx]
+        y_fold_val = y_train.iloc[val_idx].values
+# -- Preprocessing (OHE + StandardScaler) --
+        fold_preprocessor = clone(preprocessor)
+        X_fold_train_ohe = fold_preprocessor.fit_transform(X_fold_train)
+        X_fold_val_ohe = fold_preprocessor.transform(X_fold_val)
+        X_fold_test_ohe = fold_preprocessor.transform(X_test)
+
+        scaler = StandardScaler()
+        X_fold_train_sc = scaler.fit_transform(X_fold_train_ohe)
+        X_fold_val_sc = scaler.transform(X_fold_val_ohe)
+        X_fold_test_sc = scaler.transform(X_fold_test_ohe)
+# -- Converting to PyTorch tensors --
+        X_tr = torch.FloatTensor(X_fold_train_sc).to(device)
+        y_tr = torch.FloatTensor(y_fold_train).unsqueeze(-1).to(device)
+        X_vl = torch.FloatTensor(X_fold_val_sc).to(device)
+        y_vl = torch.FloatTensor(y_fold_val).unsqueeze(-1).to(device)
+        X_te = torch.FloatTensor(X_fold_test_sc).to(device)
+
+        train_dataset = TensorDataset(X_tr, y_tr)
+        train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+# -- Model --
+        input_dim = X_fold_train_sc.shape[1]
+        model = TitanicMLP(input_dim).to(device)
+        criterion == nn.BCELoss()
+        optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-4)
+
+        best_val_loss = np.inf
+        best_model_weights = None
+        patience = 15
+        patience_counter = 0
+        max_epochs = 200
+         
+
+
 
 # == Submission ==
 def make_submission(results, test_ids, config):
