@@ -343,7 +343,7 @@ for name, result in results.items():
 # -- Network architecture --
 class TitanicMLP(nn.Module):
     def __init__(self, input_dim):
-        super().__init__
+        super().__init__()
         self.network = nn.Sequential(
             nn.Linear(input_dim, 64),
             nn.BatchNorm1d(64),
@@ -382,16 +382,18 @@ def train_mlp(X_train, y_train, X_test, preprocessor, config):
         y_fold_train = y_train.iloc[train_idx].values
         X_fold_val = X_train.iloc[val_idx]
         y_fold_val = y_train.iloc[val_idx].values
+
 # -- Preprocessing (OHE + StandardScaler) --
         fold_preprocessor = clone(preprocessor)
         X_fold_train_ohe = fold_preprocessor.fit_transform(X_fold_train)
         X_fold_val_ohe = fold_preprocessor.transform(X_fold_val)
         X_fold_test_ohe = fold_preprocessor.transform(X_test)
-
+        
         scaler = StandardScaler()
         X_fold_train_sc = scaler.fit_transform(X_fold_train_ohe)
         X_fold_val_sc = scaler.transform(X_fold_val_ohe)
         X_fold_test_sc = scaler.transform(X_fold_test_ohe)
+
 # -- Converting to PyTorch tensors --
         X_tr = torch.FloatTensor(X_fold_train_sc).to(device)
         y_tr = torch.FloatTensor(y_fold_train).unsqueeze(-1).to(device)
@@ -401,10 +403,11 @@ def train_mlp(X_train, y_train, X_test, preprocessor, config):
 
         train_dataset = TensorDataset(X_tr, y_tr)
         train_loader = DataLoader(train_dataset, batch_size=32, shuffle=True)
+
 # -- Model --
         input_dim = X_fold_train_sc.shape[1]
         model = TitanicMLP(input_dim).to(device)
-        criterion == nn.BCELoss()
+        criterion = nn.BCELoss()
         optimizer = torch.optim.Adam(model.parameters(), lr=1e-3, weight_decay=1e-4)
 
         best_val_loss = np.inf
@@ -412,7 +415,66 @@ def train_mlp(X_train, y_train, X_test, preprocessor, config):
         patience = 15
         patience_counter = 0
         max_epochs = 200
-         
+
+# -- Training cycle --
+        for epoch in range(max_epochs):
+            model.train()
+            for X_batch, y_batch in train_loader:
+                optimizer.zero_grad()
+                preds = model(X_batch)
+                loss = criterion(preds, y_batch)
+                loss.backward()
+                optimizer.step()
+            model.eval()
+            with torch.no_grad():
+                val_preds = model(X_vl)
+                val_loss = criterion(val_preds, y_vl).item()
+            # Early stopping
+            if val_loss < best_val_loss:
+                best_val_loss = val_loss
+                best_model_weights = {
+                    k: v.clone() for k, v in model.state_dict().items()
+                }
+                patience_counter = 0
+            else:
+                patience_counter += 1
+                if patience_counter >= patience:
+                    break
+        
+        model.load_state_dict(best_model_weights)
+        model.eval()
+        with torch.no_grad():
+            val_probs = model(X_vl).cpu().numpy().squeeze()
+            val_preds_binary = (val_probs >= 0.5).astype(int)
+            test_probs = model(X_te).cpu().numpy().squeeze()
+        
+        fold_score = accuracy_score(y_fold_val, val_preds_binary)
+        scores.append(fold_score)
+        print(f'Accuracy: {fold_score:.4f} | Stopped at epoch: {epoch + 1}')
+
+        oof_preds[val_idx] = val_preds_binary
+        test_preds += test_probs / config['n_folds']
+
+    print(f'\nMean Accuracy: {np.mean(scores):.4f} ± {np.std(scores):.4f}')
+    print(f'\Out-Of-Fold Accuracy: {accuracy_score(y_train, oof_preds):.4f}')
+
+    return oof_preds, test_preds, scores
+
+# -- Launch MLP -- 
+print(f'\n{"="*40}')
+print('Model: MLP (PyTorch)')
+print(f'{"="*40}')
+
+mlp_oof, mlp_test_preds, mlp_scores = train_mlp(
+    X_train, y_train, X_test, preprocessor, CONFIG
+)
+results['MLP (PyTorch)'] = {
+    'oof_preds': mlp_oof,
+    'test_preds': mlp_test_preds,
+    'scores': mlp_scores,
+    'mean_score': np.mean(mlp_scores),
+    'std_score': np.std(mlp_scores),
+}
 
 
 
