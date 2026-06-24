@@ -9,8 +9,6 @@ import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader, TensorDataset
 
-import math
-
 import warnings
 warnings.filterwarnings('ignore')
 
@@ -18,13 +16,12 @@ import optuna
 optuna.logging.set_verbosity(optuna.logging.WARNING)
 
 from sklearn.base import clone
-from sklearn.metrics import accuracy_score, roc_auc_score
+from sklearn.metrics import accuracy_score
 from sklearn.linear_model import LogisticRegression
 from sklearn.model_selection import StratifiedKFold
 from sklearn.compose import ColumnTransformer
 from sklearn.preprocessing import StandardScaler
-from sklearn.preprocessing import OneHotEncoder, LabelEncoder
-from sklearn.pipeline import Pipeline
+from sklearn.preprocessing import OneHotEncoder
 
 # == Config ==
 CONFIG = {
@@ -50,7 +47,6 @@ CONFIG = {
         'learning_rate': 0.05,
         'subsample': 0.8,
         'colsample_bytree': 0.8,
-        'use_label_encoder': False,
         'eval_metric': 'logloss',
         'random_state': 1337,
         'verbosity': 0,
@@ -65,6 +61,7 @@ CONFIG = {
         'verbosity': -1,
     }
 }
+
 # == Load data ==
 def load_data(config):
     train = pd.read_csv(config['train_path'])
@@ -82,7 +79,7 @@ def engineer_features(df, is_train=True, title_age_median=None, fare_bin_edges=N
     title_mapping = {
     'Mlle': 'Miss',
     'Ms': 'Miss',
-    'MMe': 'Mrs',
+    'Mme': 'Mrs',
     'Dona': 'Mrs',
     'Lady': 'Mrs',
     'Countess': 'Mrs',
@@ -122,7 +119,7 @@ def engineer_features(df, is_train=True, title_age_median=None, fare_bin_edges=N
     family_labels = [0, 1, 2] # (0, 1] = (0) Alone, (1, 4] = (1) Small Family, (4, np.inf) = (2) Large Family
     df['FamilySizeBin'] = pd.cut(df['FamilySize'], bins=family_bins, labels=family_labels).astype(int)
 
-    # -- Fare imputation (for TEST only) --
+    # -- Fare imputation --
     if is_train:
         fare_median_by_class = df.groupby('Pclass')['Fare'].median()
     
@@ -219,7 +216,6 @@ def train_model(model, X_train, y_train, X_test, preprocessor, config, verbose=T
         val_preds = fold_model.predict(X_fold_val)
         fold_score = accuracy_score(y_fold_val, val_preds)
         scores.append(fold_score)
-        # Временно отключаем: print(f'Accuracy: {fold_score:.4f}')
 
         if verbose:
             print(f'Accuracy: {fold_score:.4f}')
@@ -332,7 +328,7 @@ for name, model in models.items():
         'std_score': np.std(scores),
     }
 
-# == Restults Summary ==
+# == Results Summary ==
 print(f'\n{"="*40}')
 print('Results Summary')
 print(f'{"="*40}')
@@ -456,7 +452,7 @@ def train_mlp(X_train, y_train, X_test, preprocessor, config):
         test_preds += test_probs / config['n_folds']
 
     print(f'\nMean Accuracy: {np.mean(scores):.4f} ± {np.std(scores):.4f}')
-    print(f'\Out-Of-Fold Accuracy: {accuracy_score(y_train, oof_preds):.4f}')
+    print(f'Out-Of-Fold Accuracy: {accuracy_score(y_train, oof_preds):.4f}')
 
     return oof_preds, test_preds, scores
 
