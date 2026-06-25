@@ -44,16 +44,17 @@ titanic/
 
 **1. Clone the repo**
 ```bash
-git clone [https://github.com/fyodor077/Kaggle-Titanic-Disaster](https://github.com/fyodor077/Kaggle-Titanic-Disaster)
+git clone https://github.com/fyodor077/Kaggle-Titanic-Disaster.git
 cd titanic
 ```
 
-**2. Create and activate virtual environment**
+**2. Setup Virtual Environment**
 ```bash
+# Create environment
 python -m venv venv
 
 # Windows
-venv\Scripts\activate
+.venv\Scripts\activate
 
 # macOS / Linux
 source venv/bin/activate
@@ -65,9 +66,7 @@ pip install -r requirements.txt
 ```
 
 **4. Add data**
-Download the competition data from [Kaggle]
-(https://www.kaggle.com/competitions/titanic/data)
-and place the files into the `data/` folder.
+* Download the competition data from [Kaggle](https://www.kaggle.com/competitions/titanic/data) and place the files into the `data/` folder.
 
 **5. Run the pipeline**
 ```bash
